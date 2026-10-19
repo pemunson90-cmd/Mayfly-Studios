@@ -1,0 +1,30 @@
+name: Mayfly Coffee Lab
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Free-tier Gemini model ID"
+        required: true
+        default: "gemini-2.5-flash"
+        type: string
+permissions:
+  contents: read
+jobs:
+  coffee-lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run isolated read-only trial
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ inputs.model }}
+        run: python3 run_coffee.py
+      - name: Save experiment results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mayfly-coffee-results
+          path: results/
+          if-no-files-found: warn
+          retention-days: 14
