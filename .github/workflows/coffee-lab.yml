@@ -11,6 +11,7 @@ permissions:
   contents: read
 jobs:
   coffee-lab:
+    environment: Mayfly
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
