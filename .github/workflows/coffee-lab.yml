@@ -5,7 +5,7 @@ on:
       model:
         description: "Free-tier Gemini model ID"
         required: true
-        default: "gemini-2.5-flash"
+        default: "gemini-3.8-flash"
         type: string
 permissions:
   contents: read
