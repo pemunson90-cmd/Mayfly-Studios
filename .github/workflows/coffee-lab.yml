@@ -2,6 +2,11 @@ name: Mayfly Coffee Lab
 on:
   workflow_dispatch:
     inputs:
+      pairs:
+        description: "Matched pairs (1-5); each pair makes six Gemini calls"
+        required: true
+        default: "3"
+        type: string
       model:
         description: "Free-tier Gemini model ID"
         required: true
@@ -16,10 +21,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - name: Test experiment logic (no API calls)
+        run: python3 -m unittest -v test_coffee.py
       - name: Run isolated read-only trial
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ inputs.model }}
+          MAYFLY_PAIRS: ${{ inputs.pairs }}
         run: python3 run_coffee.py
       - name: Save experiment results
         if: always()
