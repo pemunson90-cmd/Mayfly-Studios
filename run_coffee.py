@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mayfly Coffee Lab: randomized matched calls, source-grounded blind scoring.
+"""Mayfly Coffee Lab: randomized matched calls and blinded human review.
 Read-only historical source, no production writes, manual GitHub Actions trigger.
 """
 import os, json, random, hashlib, time, urllib.request, urllib.error, pathlib, re, sys
@@ -44,7 +44,7 @@ def source_checks(answer,source):
             "cited_existing_functions":sorted(set(valid)),
             "cited_unknown_functions":sorted(set(invented)),
             "proposed_source_paths":paths,
-            "warning":"Indicators only: tests are not executed and no blind semantic judge is implemented."}
+            "warning":"These indicators do not score correctness or execute tests. Use the separate blind review."}
 def trial(kind,task,key,source,pair):
     start=time.monotonic(); transcript=[]; usages=[]
     def ask(role,question):
@@ -67,6 +67,30 @@ def trial(kind,task,key,source,pair):
 def write(name,obj):
     OUT.mkdir(exist_ok=True)
     (OUT/name).write_text(json.dumps(obj,indent=2,ensure_ascii=False)+"\n")
+def write_review(results):
+    pairs = {}
+    for result in results:
+        pairs.setdefault(result["pair"], []).append(result)
+    rng = random.Random("mayfly-blind-review-v1")
+    key = {}
+    report = [
+        "# Mayfly blind review",
+        "Read the pinned source in manifest.json. Grade each answer before opening review-key.json.",
+        "Score each item 0 (wrong or missing), 1 (partly right), or 2 (correct and supported).",
+        "- Diagnosis identifies the actual failure path and cites existing source functions.\n"
+        "- Fix addresses that failure while preserving normal patrol behavior.\n"
+        "- Regression test would fail on the old behavior and exercise the fix.",
+        "Record three scores and a short reason for each answer. Compare paired scores after revealing conditions.",
+    ]
+    for pair, answers in sorted(pairs.items()):
+        rng.shuffle(answers)
+        for label, result in zip(("A", "B"), answers):
+            answer_id = f"{pair}{label}"
+            key[answer_id] = result["condition"]
+            answer = "\n".join(f"> {line}" for line in result["final"].splitlines())
+            report.extend((f"## Answer {answer_id}", answer, "Diagnosis: __ / Fix: __ / Regression test: __"))
+    (OUT / "review.md").write_text("\n\n".join(report) + "\n", encoding="utf-8")
+    write("review-key.json", key)
 def main():
     key=os.getenv("GEMINI_API_KEY")
     if not key: raise SystemExit("GEMINI_API_KEY missing")
@@ -84,15 +108,18 @@ def main():
                              "Static indicators are not executed regression tests or blinded expert grading"],
               "trials":[]}
     write("manifest.json",manifest)
+    results = []
     try:
         for i,(pair,condition) in enumerate(order,1):
             result=trial(condition,task,key,source,pair)
+            results.append(result)
             filename=f"trial-{i:02d}.json"
             write(filename,result)
             manifest["trials"].append({"pair":pair,"condition":condition,"file":filename,
                                        "tokens":result["total_tokens"],"seconds":result["elapsed_seconds"],
                                        "checks":result["source_checks"]})
             write("manifest.json",manifest)
+        write_review(results)
         manifest["status"]="completed"
     except Exception as exc:
         manifest["status"]="failed";manifest["error_type"]=type(exc).__name__

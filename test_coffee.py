@@ -1,4 +1,7 @@
 import unittest
+import json
+import tempfile
+from pathlib import Path
 from unittest.mock import patch
 import run_coffee as m
 class CoffeeLabTests(unittest.TestCase):
@@ -22,4 +25,20 @@ class CoffeeLabTests(unittest.TestCase):
    self.assertEqual(mocked.call_count,6)
  def test_bounded_pairs(self):
   self.assertTrue(1<=m.PAIRS<=5)
+ def test_review_keeps_trial_labels_out_of_the_grading_sheet(self):
+  results = [
+   {"pair": 1, "condition": "control", "final": "First diagnosis"},
+   {"pair": 1, "condition": "coffee", "final": "Second diagnosis"},
+  ]
+  with tempfile.TemporaryDirectory() as tmp, patch.object(m, "OUT", Path(tmp)):
+   m.write_review(results)
+   review = (Path(tmp) / "review.md").read_text(encoding="utf-8")
+   key = json.loads((Path(tmp) / "review-key.json").read_text(encoding="utf-8"))
+  self.assertNotIn("control", review)
+  self.assertNotIn("coffee", review)
+  self.assertEqual(set(key), {"1A", "1B"})
+  self.assertEqual(set(key.values()), {"control", "coffee"})
+  for answer_id, condition in key.items():
+   answer = next(r["final"] for r in results if r["condition"] == condition)
+   self.assertIn(f"## Answer {answer_id}\n\n> {answer}", review)
 if __name__=="__main__": unittest.main()
